@@ -1,0 +1,9 @@
+.git/
+.github/
+agent-zero-repo/
+knowledge/default/
+knowledge/custom/*.pdf
+tmp/
+*.log
+__pycache__/
+.env
