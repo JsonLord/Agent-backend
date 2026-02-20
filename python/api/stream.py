@@ -11,7 +11,7 @@ import traceback
 class Stream(ApiHandler):
     @classmethod
     def requires_auth(cls) -> bool:
-        return True
+        return False
 
     @classmethod
     def requires_csrf(cls) -> bool:
@@ -25,14 +25,18 @@ class Stream(ApiHandler):
         try:
             text = input.get("message") or input.get("text") or ""
             ctxid = input.get("context")
-            profile = input.get("profile")
+            subagent = input.get("subagent") or input.get("profile")
             file_data = input.get("file")
             file_name = input.get("file_name", "uploaded_file")
 
-            # Sanitize file name to prevent path traversal
-            file_name = os.path.basename(file_name)
-
             dotenv.load_dotenv()
+
+            # Automatically use BLABLADOR_API_KEY for 'other' provider if available
+            blablador_key = os.getenv("BLABLADOR_API_KEY")
+            if blablador_key:
+                os.environ.setdefault("OTHER_API_KEY", blablador_key)
+                os.environ.setdefault("API_KEY_OTHER", blablador_key)
+
             context = self.get_context(ctxid)
             config = initialize_agent()
 
@@ -41,10 +45,10 @@ class Stream(ApiHandler):
             if config.utility_model.provider == "Other OpenAI compatible":
                 config.utility_model.provider = "other"
 
-            if profile:
-                config.profile = profile
-                if profile not in config.knowledge_subdirs:
-                    config.knowledge_subdirs.append(profile)
+            if subagent:
+                config.profile = subagent
+                if subagent not in config.knowledge_subdirs:
+                    config.knowledge_subdirs.append(subagent)
 
             context.config = config
             curr_agent = context.agent0
@@ -54,6 +58,8 @@ class Stream(ApiHandler):
 
             attachment_paths = []
             if file_data:
+                # Sanitize file name to prevent path traversal
+                file_name = os.path.basename(file_name)
                 knowledge_dir = files.get_abs_path("knowledge/custom")
                 os.makedirs(knowledge_dir, exist_ok=True)
                 save_path = os.path.join(knowledge_dir, file_name)

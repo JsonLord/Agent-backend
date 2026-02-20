@@ -50,6 +50,7 @@ COPY python/api/chat.py /app/python/api/chat.py
 COPY python/api/stream.py /app/python/api/stream.py
 COPY python/api/set.py /app/python/api/set.py
 COPY python/api/get.py /app/python/api/get.py
+COPY python/api/docs.py /app/python/api/docs.py
 
 # New extensions
 COPY python/extensions/response_stream/_30_api_stream.py /app/python/extensions/response_stream/_30_api_stream.py

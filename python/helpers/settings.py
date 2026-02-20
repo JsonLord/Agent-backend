@@ -1251,6 +1251,14 @@ def normalize_settings(settings: Settings) -> Settings:
     copy = settings.copy()
     default = get_default_settings()
 
+    # Automatically use BLABLADOR_API_KEY for 'other' provider if available
+    blablador_key = os.getenv("BLABLADOR_API_KEY")
+    if blablador_key:
+        os.environ.setdefault("OTHER_API_KEY", blablador_key)
+        os.environ.setdefault("API_KEY_OTHER", blablador_key)
+        os.environ.setdefault("OPENAI_API_KEY", blablador_key)
+        os.environ.setdefault("API_KEY_OPENAI", blablador_key)
+
     # Robustly handle provider name if it's the label instead of ID
     label_to_id = {
         "Other OpenAI compatible": "other",

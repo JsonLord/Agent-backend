@@ -52,7 +52,6 @@ def turn_off_logging():
 # init
 load_dotenv()
 turn_off_logging()
-print("DEBUG: models.py loaded")
 
 
 class ModelType(Enum):
