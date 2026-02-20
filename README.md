@@ -4,7 +4,7 @@ emoji: 😻
 colorFrom: gray
 colorTo: yellow
 sdk: docker
-app_port: 5000
+app_port: 7860
 pinned: false
 short_description: 'First edits for agent-0 backend '
 ---

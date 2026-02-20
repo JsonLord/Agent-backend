@@ -104,7 +104,19 @@ def is_loopback_address(address):
 def requires_api_key(f):
     @wraps(f)
     async def decorated(*args, **kwargs):
-        # Use the auth token from settings (same as MCP server)
+        # Check for Bearer token first (Hugging Face requirement)
+        auth_token = os.getenv("AUTHENTICATION_TOKEN")
+        if auth_token:
+            auth_header = request.headers.get("Authorization")
+            if auth_header and auth_header.startswith("Bearer "):
+                bearer_token = auth_header.split(" ", 1)[1]
+                if bearer_token == auth_token:
+                    return await f(*args, **kwargs)
+            # If Bearer token is provided but incorrect, or not provided when AUTHENTICATION_TOKEN is set
+            if auth_header:
+                 return Response("Invalid Bearer token", 401)
+
+        # Fallback to the default auth token from settings (same as MCP server)
         from python.helpers.settings import get_settings
         valid_api_key = get_settings()["mcp_server_token"]
 
@@ -116,6 +128,9 @@ def requires_api_key(f):
             if api_key != valid_api_key:
                 return Response("Invalid API key", 401)
         else:
+            # If AUTHENTICATION_TOKEN was set but we reached here, it means Bearer was missing/wrong
+            if auth_token:
+                return Response("Bearer token required", 401)
             return Response("API key required", 401)
         return await f(*args, **kwargs)
 

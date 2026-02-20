@@ -103,6 +103,7 @@ class Settings(TypedDict):
     a2a_server_enabled: bool
     
 
+
 class PartialSettings(Settings, total=False):
     pass
 
@@ -249,16 +250,6 @@ def convert_out(settings: Settings) -> SettingsOutput:
             "description": "Limits the number of output tokens per minute to the chat model. Waits if the limit is exceeded. Set to 0 to disable rate limiting.",
             "type": "number",
             "value": settings["chat_model_rl_output"],
-        }
-    )
-
-    chat_model_fields.append(
-        {
-            "id": "ollama_base_url",
-            "title": "Ollama Base URL",
-            "description": "The base URL for the Ollama API.",
-            "type": "html",
-            "value": "<code>http://localhost:11434</code>",
         }
     )
 
@@ -840,7 +831,7 @@ def convert_out(settings: Settings) -> SettingsOutput:
         {
             "id": "rfc_password",
             "title": "RFC Password",
-            "description": "Password for remote function calls. Passwords must match on both instances. RFCs can not be used with empty password.",
+            "description": "Password for remote function calls. Passwords must match on both Flare instances. RFCs can not be used with empty password.",
             "type": "password",
             "value": (
                 PASSWORD_PLACEHOLDER
@@ -1260,6 +1251,35 @@ def normalize_settings(settings: Settings) -> Settings:
     copy = settings.copy()
     default = get_default_settings()
 
+    # Automatically use BLABLADOR_API_KEY for 'other' provider if available
+    blablador_key = os.getenv("BLABLADOR_API_KEY")
+    if blablador_key:
+        os.environ.setdefault("OTHER_API_KEY", blablador_key)
+        os.environ.setdefault("API_KEY_OTHER", blablador_key)
+        os.environ.setdefault("OPENAI_API_KEY", blablador_key)
+        os.environ.setdefault("API_KEY_OPENAI", blablador_key)
+
+    # Robustly handle provider name if it's the label instead of ID
+    label_to_id = {
+        "Other OpenAI compatible": "other",
+        "OpenAI": "openai",
+        "Anthropic": "anthropic",
+        "Google": "google",
+        "DeepSeek": "deepseek",
+        "Groq": "groq",
+        "HuggingFace": "huggingface",
+        "LM Studio": "lm_studio",
+        "Mistral AI": "mistral",
+        "Ollama": "ollama",
+        "OpenRouter": "openrouter",
+        "Sambanova": "sambanova",
+        "Venice": "venice"
+    }
+
+    for key in ["chat_model_provider", "util_model_provider", "embed_model_provider", "browser_model_provider"]:
+        if key in copy and copy[key] in label_to_id:
+            copy[key] = label_to_id[copy[key]]
+
     # adjust settings values to match current version if needed
     if "version" not in copy or copy["version"] != default["version"]:
         _adjust_to_version(copy, default)
@@ -1341,9 +1361,9 @@ def _write_sensitive_settings(settings: Settings):
 def get_default_settings() -> Settings:
     return Settings(
         version=_get_version(),
-        chat_model_provider="Other OpenAI compatible",
-        chat_model_name="alias-large",
-        chat_model_api_base="https://api.helmholtz-blablador.fz-juelich.de/v1",
+        chat_model_provider="openrouter",
+        chat_model_name="openai/gpt-4.1",
+        chat_model_api_base="",
         chat_model_kwargs={"temperature": "0"},
         chat_model_ctx_length=100000,
         chat_model_ctx_history=0.7,
@@ -1351,9 +1371,9 @@ def get_default_settings() -> Settings:
         chat_model_rl_requests=0,
         chat_model_rl_input=0,
         chat_model_rl_output=0,
-        util_model_provider="Other OpenAI compatible",
-        util_model_name="alias-large",
-        util_model_api_base="https://api.helmholtz-blablador.fz-juelich.de/v1",
+        util_model_provider="openrouter",
+        util_model_name="openai/gpt-4.1-mini",
+        util_model_api_base="",
         util_model_ctx_length=100000,
         util_model_ctx_input=0.7,
         util_model_kwargs={"temperature": "0"},
@@ -1366,8 +1386,8 @@ def get_default_settings() -> Settings:
         embed_model_kwargs={},
         embed_model_rl_requests=0,
         embed_model_rl_input=0,
-        browser_model_provider="Google",
-        browser_model_name="gemini-2.0-flash-lite",
+        browser_model_provider="openrouter",
+        browser_model_name="openai/gpt-4.1",
         browser_model_api_base="",
         browser_model_vision=True,
         browser_model_rl_requests=0,
@@ -1416,7 +1436,6 @@ def get_default_settings() -> Settings:
     )
 
 
-
 def _apply_settings(previous: Settings | None):
     global _settings
     if _settings:
@@ -1435,8 +1454,8 @@ def _apply_settings(previous: Settings | None):
         # reload whisper model if necessary
         if not previous or _settings["stt_model_size"] != previous["stt_model_size"]:
             task = defer.DeferredTask().start_task(
-                whisper.preload, _settings["stt_model_size"])
-            # TODO overkill, replace with background task
+                whisper.preload, _settings["stt_model_size"]
+            )  # TODO overkill, replace with background task
 
         # force memory reload on embedding model change
         if not previous or (
@@ -1542,7 +1561,7 @@ def _dict_to_env(data_dict):
     for key, value in data_dict.items():
         if "\n" in value:
             value = f"'{value}'"
-        elif " " in value or value == "" or any(c in value for c in "'\""):
+        elif " " in value or value == "" or any(c in value for c in "\"'"):
             value = f'"{value}"'
         lines.append(f"{key}={value}")
     return "\n".join(lines)
@@ -1558,6 +1577,7 @@ def set_root_password(password: str):
         check=True,
     )
     dotenv.save_dotenv_value(dotenv.KEY_ROOT_PASSWORD, password)
+
 
 def get_runtime_config(set: Settings):
     if runtime.is_dockerized():
@@ -1581,6 +1601,7 @@ def get_runtime_config(set: Settings):
             "code_exec_ssh_port": set["rfc_port_ssh"],
             "code_exec_ssh_user": "root",
         }
+
 
 def create_auth_token() -> str:
     runtime_id = runtime.get_persistent_id()
